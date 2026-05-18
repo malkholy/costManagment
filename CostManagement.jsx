@@ -165,6 +165,8 @@ export default function App() {
   const [apiUrl, setApiUrl]       = useState(() => { try { return localStorage.getItem("cm_api_url") || ""; } catch { return ""; } });
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState("");
+  const [testData, setTestData]     = useState(null);
+  const [testing, setTesting]       = useState(false);
   const fileRef = useRef();
 
   const handleUpload = async e => {
@@ -180,18 +182,41 @@ export default function App() {
   };
 
   const handleRefresh = async () => {
-    if (!apiUrl.trim()) { setRefreshMsg("❌ Enter API URL first"); return; }
     setRefreshing(true); setRefreshMsg("");
     try {
-      try { localStorage.setItem("cm_api_url", apiUrl.trim()); } catch {}
-      const res  = await fetch(apiUrl.trim());
+      const res = await fetch("https://sila.silasystem.com:7103/General/GeneralAPI/", {
+        method: "POST",
+        headers: {
+          "Accept":         "application/json",
+          "content-type":   "application/json",
+          "content-length": "264",
+          "Sp_Name":        "APIClaudeOperation"
+        },
+        body: JSON.stringify({
+          Operation:         "Get All Data",
+          User:              "mhd",
+          AppVersionWeb:     "225",
+          AppVersionAndroid: "225",
+          AppVersionIos:     "225",
+          AppVersionDesktop: "225",
+          FireBaseToken:     "",
+          PlatForm:          "web",
+          deviceID:          "",
+          IP:                "192.168.1.3"
+        })
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      // json = { priceList, rawCost, bom }
+      // Response: { data: [ priceListRows, rawCostRows, bomRows ] }
+      // or state/message wrapper
+      const datasets = Array.isArray(json.data) ? json.data
+                     : Array.isArray(json)       ? json
+                     : null;
+      if (!datasets || datasets.length < 3) throw new Error("Expected 3 result sets from SP");
       const sheets = {
-        priceList: json.priceList.map(r => ({ ItemCode: r.ItemCode, ItemDescription: r.ItemDescription, PriceSellingUnit: r.PriceSellingUnit, SellingConversion: r.SellingConversion })),
-        rawCost:   json.rawCost.map(r => ({ ItemCode: r.ItemCode, AverageCost: r.AverageCost })),
-        bom:       json.bom.map(r => ({ ParentItemCode: r.ParentItemCode, ChildItemCode: r.ChildItemCode, Quantity: r.Quantity, ParentBatchQty: r.ParentBatchQty }))
+        priceList: datasets[0].map(r => ({ ItemCode: r.ItemCode, ItemDescription: r.ItemDescription, PriceSellingUnit: r.PriceSellingUnit, SellingConversion: r.SellingConversion })),
+        rawCost:   datasets[1].map(r => ({ ItemCode: r.ItemCode, AverageCost: r.AverageCost })),
+        bom:       datasets[2].map(r => ({ ParentItemCode: r.ParentItemCode, ChildItemCode: r.ChildItemCode, Quantity: r.Quantity, ParentBatchQty: r.ParentBatchQty }))
       };
       const result = processExcelData(sheets);
       if (!result) throw new Error("Could not process API data");
@@ -203,6 +228,37 @@ export default function App() {
       setRefreshMsg("❌ " + err.message);
     }
     setRefreshing(false);
+  };
+
+  const handleTest = async () => {
+    setTesting(true); setTestData(null);
+    try {
+      const res = await fetch("https://sila.silasystem.com:7103/General/GeneralAPI/", {
+        method: "POST",
+        headers: {
+          "Accept":         "application/json",
+          "content-type":   "application/json",
+          "Sp_Name":        "APIClaudeOperation"
+        },
+        body: JSON.stringify({
+          Operation:         "Get All Data",
+          User:              "mhd",
+          AppVersionWeb:     "225",
+          AppVersionAndroid: "225",
+          AppVersionIos:     "225",
+          AppVersionDesktop: "225",
+          FireBaseToken:     "",
+          PlatForm:          "web",
+          deviceID:          "",
+          IP:                "192.168.1.3"
+        })
+      });
+      const json = await res.json();
+      setTestData({ ok: true, status: res.status, data: json });
+    } catch (err) {
+      setTestData({ ok: false, error: err.message });
+    }
+    setTesting(false);
   };
 
   const filtered = useMemo(() => {
@@ -258,18 +314,14 @@ export default function App() {
             <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>BOM Cost + 35% Production • Pro Plast GLC</div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {/* API URL + Refresh */}
-            <div style={{ display: "flex", gap: 6, alignItems: "center", background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "4px 8px" }}>
-              <span style={{ fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" }}>🔗 API:</span>
-              <input value={apiUrl} onChange={e => setApiUrl(e.target.value)}
-                placeholder="https://your-erp/api/CostManagement/GetAll"
-                style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", padding: "5px 10px", borderRadius: 6, fontSize: 11, fontFamily: "inherit", width: 260 }} />
-              <button onClick={handleRefresh} disabled={refreshing}
-                style={{ background: refreshing ? "rgba(255,255,255,0.1)" : "#15803d", border: "none", color: "#fff", padding: "6px 12px", borderRadius: 6, cursor: refreshing ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit", whiteSpace: "nowrap" }}>
-                {refreshing ? "⏳ Loading..." : "🔄 Refresh DB"}
-              </button>
-            </div>
-            {refreshMsg && <div style={{ background: refreshMsg.startsWith("✅") ? "#15803d" : "#dc2626", padding: "5px 10px", borderRadius: 6, fontSize: 11 }}>{refreshMsg}</div>}
+            <button onClick={handleTest} disabled={testing}
+              style={{ background: testing ? "rgba(255,255,255,0.1)" : "#7c3aed", border: "none", color: "#fff", padding: "7px 16px", borderRadius: 8, cursor: testing ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+              {testing ? "⏳ Testing..." : "🧪 Test API"}
+            </button>
+            <button onClick={handleRefresh} disabled={refreshing}
+              style={{ background: refreshing ? "rgba(255,255,255,0.1)" : "#15803d", border: "none", color: "#fff", padding: "7px 16px", borderRadius: 8, cursor: refreshing ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+              {refreshing ? "⏳ Loading..." : "🔄 Refresh DB"}
+            </button>
             {uploadMsg && <div style={{ background: uploadMsg.startsWith("✅") ? "#15803d" : "#dc2626", padding: "5px 12px", borderRadius: 6, fontSize: 12 }}>{uploadMsg}</div>}
             <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleUpload} style={{ display: "none" }} />
             <button onClick={() => fileRef.current.click()} disabled={uploading}
@@ -278,7 +330,42 @@ export default function App() {
             </button>
           </div>
         </div>
-        {/* Nav Tabs */}
+        {/* Test API Response Panel */}
+        {testData && (
+          <div style={{ margin: "12px 20px", background: "#fff", borderRadius: 12, boxShadow: "0 2px 16px rgba(0,0,0,0.08)", overflow: "hidden" }}>
+            <div style={{ padding: "10px 16px", background: testData.ok ? "#f0fdf4" : "#fef2f2", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `2px solid ${testData.ok ? "#15803d" : "#dc2626"}` }}>
+              <div style={{ fontWeight: 700, color: testData.ok ? "#15803d" : "#dc2626", fontSize: 13 }}>
+                {testData.ok ? `✅ API Response — HTTP ${testData.status}` : `❌ API Error — ${testData.error}`}
+              </div>
+              <button onClick={() => setTestData(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#94a3b8" }}>✕</button>
+            </div>
+            {testData.ok && (
+              <div style={{ padding: "12px 16px", overflowX: "auto", maxHeight: 400, overflowY: "auto" }}>
+                <pre style={{ margin: 0, fontSize: 11, fontFamily: "monospace", color: "#1e293b", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                  {JSON.stringify(testData.data, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Refresh message alert */}
+      {refreshMsg && (
+        <div style={{ background: refreshMsg.startsWith("✅") ? "#f0fdf4" : "#fef2f2", borderBottom: `3px solid ${refreshMsg.startsWith("✅") ? "#15803d" : "#dc2626"}`, padding: "10px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 20 }}>{refreshMsg.startsWith("✅") ? "✅" : "❌"}</span>
+            <div>
+              <div style={{ fontWeight: 700, color: refreshMsg.startsWith("✅") ? "#15803d" : "#dc2626", fontSize: 14 }}>
+                {refreshMsg.startsWith("✅") ? "Refresh Successful" : "Refresh Failed"}
+              </div>
+              <div style={{ fontSize: 12, color: "#374151", marginTop: 2 }}>{refreshMsg.replace(/^✅|^❌/, "").trim()}</div>
+            </div>
+          </div>
+          <button onClick={() => setRefreshMsg("")}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#94a3b8", padding: "0 4px" }}>✕</button>
+        </div>
+      )}
         <div style={{ display: "flex", gap: 4 }}>
           {[["cost", "📊 Cost Management"], ["raw", "🧪 Raw Materials"], ["sales", "💰 Sales Amount"], ["fg", "🏷️ Finished Goods"]].map(([p, label]) => (
             <button key={p} onClick={() => setPage(p)}
