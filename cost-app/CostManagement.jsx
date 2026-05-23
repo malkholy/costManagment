@@ -372,115 +372,9 @@ export default function App() {
     };
   }, [loggedIn, autoLogout, resetTimer]);
 
-
-  const [data, setData]         = useState(INITIAL_DATA);
   const [page, setPage]         = useState("cost");
-  // ── Tab bar ──
-  const PAGE_META = {
-    cost:     { icon:"📊", label:"BOM" },
-    raw:      { icon:"🧪", label:"Raw Materials" },
-    salesamt: { icon:"💰", label:"Sales Amount" },
-    fg:       { icon:"🏷️", label:"Finished Goods" },
-    balance:  { icon:"📦", label:"Item Balance" },
-    rawcost:  { icon:"💎", label:"Raw Material Cost" },
-    cashflow: { icon:"💵", label:"Cash Flow" },
-    pricelist:{ icon:"🏷️", label:"Price List" },
-    salesan:  { icon:"📈", label:"Sales Analysis" },
-    pricelab: { icon:"🔬", label:"Price Lab" },
-    coverage: { icon:"📊", label:"Coverage" },
-    expenses: { icon:"💸", label:"Expenses" },
-    orders:   { icon:"📋", label:"Customer Orders" },
-  };
-  const [tabs, setTabs] = useState(["cost"]);
-  const openTab = (p) => {
-    if (tabs.includes(p)) { setPage(p); return; }  // already open → just switch
-    setTabs(prev => prev.length >= 6 ? [...prev.slice(1), p] : [...prev, p]);
-    setPage(p);
-  };
-  const closeTab = (p, e) => {
-    e.stopPropagation();
-    setTabs(prev => {
-      const next = prev.filter(t => t !== p);
-      if (next.length === 0) { setPage("cost"); return ["cost"]; }
-      if (page === p) setPage(next[next.indexOf(p) > 0 ? next.indexOf(p) - 1 : 0] ?? next[next.length - 1]);
-      return next;
-    });
-  };
-
-  // ── Shared PDF export helper ──
-  const printPagePDF = async (tableEl, opts = {}) => {
-    const { title = "Report", subtitle = "" } = opts;
-    const loadScript = (src) => new Promise((res, rej) => {
-      if (document.querySelector(`script[src="${src}"]`)) return res();
-      const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej;
-      document.head.appendChild(s);
-    });
-    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
-    const { jsPDF } = window.jspdf;
-    const today = new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
-
-    // Capture thead and full table separately
-    const thead = tableEl.querySelector("thead");
-    const theadCanvas = thead ? await window.html2canvas(thead, { scale:2, useCORS:true, backgroundColor:"#f8fafc" }) : null;
-    const fullCanvas  = await window.html2canvas(tableEl, { scale:2, useCORS:true, backgroundColor:"#fff" });
-
-    const pdf = new jsPDF({ orientation:"landscape", unit:"mm", format:"a4" });
-    const pageW  = pdf.internal.pageSize.getWidth();
-    const pageH  = pdf.internal.pageSize.getHeight();
-    const margin = 8;
-    const hdrH   = 16;
-    const usableW = pageW - margin * 2;
-    const theadH  = theadCanvas ? (theadCanvas.height / theadCanvas.width) * usableW : 0;
-    const footerH = 7;
-    const usableBodyH = pageH - hdrH - theadH - footerH - margin;
-
-    const theadPx  = theadCanvas ? theadCanvas.height : 0;
-    const bodyPx   = fullCanvas.height - theadPx;
-    const pxPerMm  = fullCanvas.width / usableW;
-    const slicePx  = Math.max(1, Math.floor(usableBodyH * pxPerMm));
-    const pages    = Math.max(1, Math.ceil(bodyPx / slicePx));
-
-    for (let i = 0; i < pages; i++) {
-      if (i > 0) pdf.addPage();
-      // Header bar
-      pdf.setFillColor(30, 41, 59);
-      pdf.rect(0, 0, pageW, hdrH, "F");
-      pdf.setTextColor(255,255,255); pdf.setFont("helvetica","bold"); pdf.setFontSize(11);
-      pdf.text(title, margin, 11);
-      pdf.setFont("helvetica","normal"); pdf.setFontSize(8);
-      if (subtitle) pdf.text(subtitle, margin + pdf.getTextWidth(title) + 5, 11);
-      pdf.text(`${today}  ·  Page ${i+1} of ${pages}`, pageW - margin, 11, { align:"right" });
-      let y = hdrH + 1;
-      // Repeating thead
-      if (theadCanvas) {
-        pdf.addImage(theadCanvas.toDataURL("image/png"), "PNG", margin, y, usableW, theadH);
-        y += theadH + 0.5;
-      }
-      // Body slice
-      const srcY = theadPx + i * slicePx;
-      const srcH = Math.min(slicePx, bodyPx - i * slicePx);
-      const sliceCanvas = document.createElement("canvas");
-      sliceCanvas.width = fullCanvas.width; sliceCanvas.height = srcH;
-      sliceCanvas.getContext("2d").drawImage(fullCanvas, 0, -srcY);
-      pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", margin, y, usableW, (srcH / fullCanvas.width) * usableW);
-      // Footer
-      pdf.setFontSize(7); pdf.setTextColor(148,163,184);
-      pdf.text("Sila System — Cost Management", margin, pageH - 3);
-      pdf.text(`Page ${i+1} of ${pages}`, pageW/2, pageH-3, { align:"center" });
-    }
-    pdf.save(`${title.replace(/\s+/g,"_")}_${new Date().toISOString().slice(0,10)}.pdf`);
-  };
-
+  const [data, setData]         = useState(INITIAL_DATA);
   const [costOverrides, setCostOverrides] = useState({}); // { itemCode: newCost }
-  // ── Table refs for PDF export ──
-  const bomTableRef      = useRef(null);
-  const salesAmtTableRef = useRef(null);
-  const fgTableRef       = useRef(null);
-  const balanceTableRef  = useRef(null);
-  const rawCostTableRef  = useRef(null);
-  const saTableRef       = useRef(null);
-  const exTableRef       = useRef(null);
   const [editingCode, setEditingCode] = useState(null);
   const [editValue, setEditValue] = useState("");
   const [search, setSearch]     = useState("");
@@ -563,19 +457,6 @@ export default function App() {
   const [exParentOpen,   setExParentOpen]   = useState(false);
   const [exMonthOpen,    setExMonthOpen]    = useState(false);
   const [exGroupOpen,    setExGroupOpen]    = useState(false);
-
-  // ── Customer Orders ──
-  const [ordersHeaders,  setOrdersHeaders]  = useState([]);
-  const [ordersLines,    setOrdersLines]    = useState([]);
-  const [ordersLoading,  setOrdersLoading]  = useState(false);
-  const [ordersMsg,      setOrdersMsg]      = useState("");
-  const [ordersYear,     setOrdersYear]     = useState(new Date().getFullYear());
-  const [ordersSearch,   setOrdersSearch]   = useState("");
-  const [ordersState,    setOrdersState]    = useState("all");
-  const [ordersSelected, setOrdersSelected] = useState(null);
-  const [ordersSortCol,  setOrdersSortCol]  = useState("DateOrderEntered");
-  const [ordersSortDir,  setOrdersSortDir]  = useState("desc");
-  const ordersTableRef = useRef(null);
 
   // Recalculate all BOM items whenever costOverrides changes
   const recalcData = useMemo(() => {
@@ -906,7 +787,6 @@ export default function App() {
   };
 
   const fetchSales = async (year) => {
-    setSaLoading(true); setSaMsg("");
     try {
       const res = await fetch(API_URL, { method: "POST", headers: HEADERS, body: JSON.stringify({ ...BASE_BODY, Operation: "Sales Analysis", Year: String(year) }) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -920,33 +800,8 @@ export default function App() {
     setSaLoading(false);
   };
 
-  const fetchOrders = async (year) => {
-    setOrdersLoading(true); setOrdersMsg(""); setOrdersHeaders([]); setOrdersLines([]); setOrdersSelected(null);
-    try {
-      const res = await fetch(API_URL, {
-        method: "POST", headers: HEADERS,
-        body: JSON.stringify({ ...BASE_BODY, Operation: "Customer Orders", Year: String(year || new Date().getFullYear()) })
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const headers = Array.isArray(json) ? json : (json?.List0 || []);
-      const lines   = json?.List1 || [];
-      setOrdersHeaders(headers);
-      setOrdersLines(lines);
-      setOrdersMsg(headers.length ? `✅ ${headers.length} orders · ${lines.length} lines` : "No orders found.");
-    } catch (err) {
-      setOrdersMsg("❌ " + err.message);
-    }
-    setOrdersLoading(false);
-  };
-
-  // ── Auto-load on page navigation ──
-  useEffect(() => { if (page === "salesan"  && loggedIn) fetchSales(saYear);    }, [page, saYear]);    // eslint-disable-line
-  useEffect(() => { if (page === "coverage" && loggedIn) fetchCoverage(ccYear); }, [page, ccYear]);   // eslint-disable-line
-  useEffect(() => { if (page === "expenses" && loggedIn) fetchExpenses(exYear); }, [page, exYear]);   // eslint-disable-line
-  useEffect(() => { if (page === "orders"   && loggedIn) fetchOrders(ordersYear); }, [page, ordersYear]); // eslint-disable-line
-
-  const filtered = useMemo(() => {    let d = [...recalcData];
+  const filtered = useMemo(() => {
+    let d = [...recalcData];
     if (search) d = d.filter(i => i.code.toLowerCase().includes(search.toLowerCase()) || i.desc.includes(search));
     if (filterBOM === "with")    d = d.filter(i => i.hasBOM);
     if (filterBOM === "without") d = d.filter(i => !i.hasBOM);
@@ -1000,59 +855,20 @@ export default function App() {
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
         :root { --sidebar-offset: 240px; }
-        .cm-sidebar { transform: translateX(0); transition: transform 0.25s ease; }
-        @keyframes cm-spin { to { transform: rotate(360deg); } }
-        .cm-tab-bar {
-          display: flex; align-items: flex-end;
-          background: #f1f5f9; border-bottom: 2px solid #e2e8f0;
-          padding: 0 16px; gap: 2px; overflow-x: auto;
-          scrollbar-width: none;
+        .cm-sidebar {
+          transform: translateX(0);
+          transition: transform 0.25s ease;
         }
-        .cm-tab-bar::-webkit-scrollbar { display: none; }
-        .cm-tab {
-          display: flex; align-items: center; gap: 6px;
-          padding: 8px 14px 7px; font-size: 12px; font-weight: 600;
-          border: 1px solid transparent; border-bottom: none;
-          border-radius: 8px 8px 0 0; cursor: pointer;
-          white-space: nowrap; transition: background 0.12s;
-          background: #e2e8f0; color: #64748b;
-          font-family: inherit; position: relative; top: 2px;
-        }
-        .cm-tab:hover { background: #fff; color: #1e293b; }
-        .cm-tab.active {
-          background: #fff; color: #1e293b;
-          border-color: #e2e8f0; border-bottom-color: #fff;
-          box-shadow: 0 -2px 6px rgba(0,0,0,0.06);
-        }
-        .cm-tab-close {
-          margin-left: 4px; width: 16px; height: 16px;
-          border-radius: 50%; border: none; background: transparent;
-          color: #94a3b8; cursor: pointer; font-size: 11px;
-          display: flex; align-items: center; justify-content: center;
-          line-height: 1; padding: 0; font-family: inherit;
-        }
-        .cm-tab-close:hover { background: #fca5a5; color: #dc2626; }
-        .cm-loader-overlay {
-          position: fixed; inset: 0; z-index: 9999;
-          background: rgba(248,250,252,0.85);
-          backdrop-filter: blur(4px);
-          display: flex; flex-direction: column;
-          align-items: center; justify-content: center; gap: 16px;
-        }
-        .cm-loader-spinner {
-          width: 52px; height: 52px;
-          border: 5px solid #e2e8f0;
-          border-top-color: #7c3aed;
-          border-radius: 50%;
-          animation: cm-spin 0.75s linear infinite;
-        }
-        .cm-loader-label { font-size: 15px; font-weight: 600; color: #475569; }
         .cm-overlay {
-          display: none; position: fixed; inset: 0;
-          background: rgba(0,0,0,0.5); z-index: 99;
+          display: none;
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.5);
+          z-index: 99;
         }
         .cm-hamburger {
-          display: none; align-items: center;
+          display: none;
+          align-items: center;
           justify-content: center;
           width: 36px;
           height: 36px;
@@ -1085,21 +901,6 @@ export default function App() {
           }
         }
       `}</style>
-
-      {/* ── Global Loading Overlay ── */}
-      {(saLoading || ccLoading || exLoading || balanceLoading || cfLoading || plLoading || ordersLoading) && (
-        <div className="cm-loader-overlay">
-          <div className="cm-loader-spinner" />
-          <div className="cm-loader-label">
-            {saLoading      ? "Loading Sales Analysis…"    :
-             ccLoading      ? "Loading Customer Coverage…" :
-             exLoading      ? "Loading Expenses…"          :
-             balanceLoading ? "Loading Item Balance…"      :
-             cfLoading      ? "Loading Cash Flow…"         :
-             plLoading      ? "Loading Price List…"        : ordersLoading ? "Loading Customer Orders…" : "Loading…"}
-          </div>
-        </div>
-      )}
 
       {/* ── Overlay (mobile) ── */}
       <div className={`cm-overlay${sidebarOpen ? " active" : ""}`} onClick={() => setSidebarOpen(false)} />
@@ -1135,9 +936,8 @@ export default function App() {
             ["pricelab",  "🔬", "Price Lab"],
             ["coverage",  "📊", "Customer Coverage"],
             ["expenses",  "💸", "Expenses Analysis"],
-            ["orders",    "📋", "Customer Orders"],
           ].map(([p, icon, label]) => (
-            <button key={p} onClick={() => { openTab(p); setSidebarOpen(false); }} style={{
+            <button key={p} onClick={() => { setPage(p); setSidebarOpen(false); }} style={{
               width: "100%", display: "flex", alignItems: "center", gap: 12,
               padding: "11px 14px", borderRadius: 10, border: "none", cursor: "pointer",
               fontFamily: "inherit", fontSize: 13, fontWeight: 600, marginBottom: 4,
@@ -1214,7 +1014,6 @@ export default function App() {
                 {page === "salesan"  && "📈 Sales Analysis"}
                 {page === "pricelab" && "🔬 Price Lab"}
                 {page === "coverage"  && "📊 Customer Coverage"}
-                {page === "orders"    && "📋 Customer Orders"}
               </div>
               <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>BOM Cost + 35% Production Overhead</div>
             </div>
@@ -1228,17 +1027,6 @@ export default function App() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* ── Tab Bar ── */}
-        <div className="cm-tab-bar">
-          {tabs.map(t => (
-            <button key={t} className={`cm-tab${page === t ? " active" : ""}`} onClick={() => setPage(t)}>
-              <span>{PAGE_META[t]?.icon}</span>
-              <span>{PAGE_META[t]?.label}</span>
-              <button className="cm-tab-close" onClick={(e) => closeTab(t, e)}>✕</button>
-            </button>
-          ))}
         </div>
 
         {/* Auto-logout countdown warning */}
@@ -1599,8 +1387,119 @@ export default function App() {
               style={{ background: "#15803d", border: "none", color: "#fff", padding: "6px 14px", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit", whiteSpace: "nowrap" }}>
               ⬇️ Export Excel
             </button>
-            <button onClick={() => bomTableRef.current && printPagePDF(bomTableRef.current, { title:"BOM Cost Report", subtitle:`${filtered.length} items${discount>0?` · Discount: ${fmtPct(discount)}%`:""}` })}
-              style={{ background:"#dc2626", border:"none", color:"#fff", padding:"6px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
+            <button onClick={async () => {
+              // Load libs from CDN
+              const loadScript = (src) => new Promise((res, rej) => {
+                if (document.querySelector(`script[src="${src}"]`)) return res();
+                const s = document.createElement("script");
+                s.src = src; s.onload = res; s.onerror = rej;
+                document.head.appendChild(s);
+              });
+              await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+              await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+
+              const { jsPDF } = window.jspdf;
+
+              // Build a clean off-screen HTML table with all data
+              const container = document.createElement("div");
+              container.style.cssText = "position:fixed;left:-9999px;top:0;background:#fff;padding:20px;font-family:Arial,sans-serif;width:1100px;direction:ltr";
+
+              const today = new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+              container.innerHTML = `
+                <div style="background:#1e293b;color:#fff;padding:10px 16px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between;align-items:center">
+                  <span style="font-size:16px;font-weight:700">📊 BOM Cost Report</span>
+                  <span style="font-size:12px;opacity:0.8">${today} &nbsp;·&nbsp; ${filtered.length} items${discount > 0 ? ` &nbsp;·&nbsp; Discount: ${fmtPct(discount)}%` : ""}</span>
+                </div>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;padding:8px 16px;display:flex;gap:24px;font-size:12px;color:#475569">
+                  <span>Total: <b>${stats.total}</b></span>
+                  <span>✅ With BOM: <b>${stats.withBOM}</b></span>
+                  <span>❌ No BOM: <b>${stats.noBOM}</b></span>
+                  <span>⚠️ Partial: <b>${stats.partial}</b></span>
+                  <span>Avg Profit: <b>${fmtPct(stats.avgProfit)}%</b></span>
+                  <span>Low Profit: <b style="color:#dc2626">${stats.low}</b></span>
+                </div>
+                <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:0">
+                  <thead>
+                    <tr style="background:#7c3aed;color:#fff">
+                      <th style="padding:7px 8px;text-align:center;width:30px">#</th>
+                      <th style="padding:7px 8px;text-align:left;width:110px">Code</th>
+                      <th style="padding:7px 8px;text-align:left">Description</th>
+                      <th style="padding:7px 8px;text-align:center;width:50px">Conv.</th>
+                      <th style="padding:7px 8px;text-align:right;width:75px">Sell Price</th>
+                      <th style="padding:7px 8px;text-align:right;width:85px">Material Cost</th>
+                      <th style="padding:7px 8px;text-align:right;width:85px">Total +35%</th>
+                      <th style="padding:7px 8px;text-align:right;width:75px">Profit</th>
+                      <th style="padding:7px 8px;text-align:center;width:65px">Profit %</th>
+                      ${discount > 0 ? `<th style="padding:7px 8px;text-align:right;width:85px">Net Price</th><th style="padding:7px 8px;text-align:center;width:75px">% After Disc</th>` : ""}
+                      <th style="padding:7px 8px;text-align:center;width:60px">BOM</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${filtered.map((item, idx) => {
+                      const netPrice = discount > 0 && item.hasBOM ? Math.round(item.sp * (1 - discount/100)*100)/100 : null;
+                      const profitAfterDisc = netPrice !== null ? Math.round((netPrice - item.boxCost)*100)/100 : null;
+                      const pctAfterDisc = profitAfterDisc !== null && netPrice > 0 ? Math.round((profitAfterDisc/netPrice*100)*10)/10 : null;
+                      const bomStatus = !item.hasBOM ? "No BOM" : item.missing.length > 0 ? "Partial" : "OK";
+                      const bomColor = bomStatus === "OK" ? "#15803d" : bomStatus === "Partial" ? "#b45309" : "#dc2626";
+                      const pct = item.hasBOM ? item.profitPct : null;
+                      const pctColor = pct === null ? "#94a3b8" : pct >= 40 ? "#15803d" : pct >= 20 ? "#b45309" : "#dc2626";
+                      const rowBg = !item.hasBOM ? "#fef2f2" : idx % 2 === 0 ? "#fff" : "#f8fafc";
+                      return `<tr style="background:${rowBg}">
+                        <td style="padding:6px 8px;text-align:center;color:#94a3b8">${idx+1}</td>
+                        <td style="padding:6px 8px;font-family:monospace;font-weight:700;color:#0f2d5a">${item.code}</td>
+                        <td style="padding:6px 8px;color:#1e293b">${item.desc || ""}</td>
+                        <td style="padding:6px 8px;text-align:center">${item.conv}</td>
+                        <td style="padding:6px 8px;text-align:right">${item.hasBOM ? item.sp : ""}</td>
+                        <td style="padding:6px 8px;text-align:right">${item.hasBOM ? item.rawBoxCost : ""}</td>
+                        <td style="padding:6px 8px;text-align:right">${item.hasBOM ? item.boxCost : ""}</td>
+                        <td style="padding:6px 8px;text-align:right">${item.hasBOM ? item.profit : ""}</td>
+                        <td style="padding:6px 8px;text-align:center;font-weight:700;color:${pctColor}">${pct !== null ? pct + "%" : "—"}</td>
+                        ${discount > 0 ? `<td style="padding:6px 8px;text-align:right">${netPrice ?? ""}</td><td style="padding:6px 8px;text-align:center;font-weight:700;color:${pctColor}">${pctAfterDisc != null ? pctAfterDisc+"%" : ""}</td>` : ""}
+                        <td style="padding:6px 8px;text-align:center;font-weight:700;color:${bomColor}">${bomStatus}</td>
+                      </tr>`;
+                    }).join("")}
+                  </tbody>
+                </table>
+                <div style="margin-top:8px;font-size:10px;color:#94a3b8;text-align:center">
+                  Sila System — Cost Management &nbsp;·&nbsp; Total Cost = Material Cost × 1.35 (includes 35% production overhead)
+                </div>
+              `;
+              document.body.appendChild(container);
+
+              try {
+                const canvas = await window.html2canvas(container, { scale: 2, useCORS: true, backgroundColor: "#fff" });
+                const imgData = canvas.toDataURL("image/png");
+                const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+                const pageW = pdf.internal.pageSize.getWidth();
+                const pageH = pdf.internal.pageSize.getHeight();
+                const margin = 8;
+                const usableW = pageW - margin * 2;
+                const totalH = (canvas.height / canvas.width) * usableW;
+                const pagesNeeded = Math.ceil(totalH / (pageH - margin * 2));
+
+                for (let i = 0; i < pagesNeeded; i++) {
+                  if (i > 0) pdf.addPage();
+                  const srcY = i * (canvas.height / pagesNeeded);
+                  const srcH = canvas.height / pagesNeeded;
+                  const pageCanvas = document.createElement("canvas");
+                  pageCanvas.width = canvas.width;
+                  pageCanvas.height = srcH;
+                  const ctx = pageCanvas.getContext("2d");
+                  ctx.drawImage(canvas, 0, -srcY);
+                  const pageImg = pageCanvas.toDataURL("image/png");
+                  const sliceH = (srcH / canvas.width) * usableW;
+                  pdf.addImage(pageImg, "PNG", margin, margin, usableW, sliceH);
+                  pdf.setFontSize(7);
+                  pdf.setTextColor(148, 163, 184);
+                  pdf.text(`Page ${i+1} of ${pagesNeeded}`, pageW/2, pageH-3, { align:"center" });
+                }
+
+                pdf.save(`BOM_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+              } finally {
+                document.body.removeChild(container);
+              }
+            }}
+              style={{ background: "#dc2626", border: "none", color: "#fff", padding: "6px 14px", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit", whiteSpace: "nowrap" }}>
               🖨️ Export PDF
             </button>
             <span style={{ color: "#94a3b8", fontSize: 12 }}>{filtered.length} items</span>
@@ -1612,7 +1511,7 @@ export default function App() {
           </div>
 
           <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 330px)" }}>
-            <table ref={bomTableRef} style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead style={{ position: "sticky", top: 0, background: "#f8fafc", zIndex: 10 }}>
                 <tr>
                   <th style={{ padding: "9px 12px", textAlign: "left", borderBottom: "2px solid #e2e8f0", color: "#475569" }}>{sortBtn("code", "#  Code")}</th>
@@ -1909,13 +1808,9 @@ export default function App() {
                   style={{ background: "#15803d", border: "none", color: "#fff", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit", whiteSpace: "nowrap" }}>
                   ⬇️ Export Excel
                 </button>
-                <button onClick={() => salesAmtTableRef.current && printPagePDF(salesAmtTableRef.current, { title:"Sales Amount Report" })}
-                  style={{ background:"#dc2626", border:"none", color:"#fff", padding:"5px 12px", borderRadius:6, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                  🖨️ Export PDF
-                </button>
               </div>
               <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 320px)" }}>
-                <table ref={salesAmtTableRef} style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead style={{ position: "sticky", top: 0, background: "#f8fafc", zIndex: 10 }}>
                     <tr>
                       <th style={{ padding: "9px 12px", textAlign: "left", borderBottom: "2px solid #e2e8f0", color: "#475569" }}>#</th>
@@ -2033,15 +1928,11 @@ export default function App() {
                   style={{ background: "#15803d", border: "none", color: "#fff", padding: "6px 14px", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit", whiteSpace: "nowrap" }}>
                   ⬇️ Export Excel
                 </button>
-                <button onClick={() => fgTableRef.current && printPagePDF(fgTableRef.current, { title:"Finished Goods Report" })}
-                  style={{ background:"#dc2626", border:"none", color:"#fff", padding:"6px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                  🖨️ Export PDF
-                </button>
                 <span style={{ color: "#94a3b8", fontSize: 12 }}>{filtered.length} items</span>
               </div>
 
               <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 300px)" }}>
-                <table ref={fgTableRef} style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead style={{ position: "sticky", top: 0, background: "#f8fafc", zIndex: 10 }}>
                     <tr>
                       <th style={{ padding: "9px 10px", textAlign: "left",   borderBottom: "2px solid #e2e8f0", color: "#475569" }}>#</th>
@@ -2180,16 +2071,10 @@ export default function App() {
                   }} style={{ background:"#15803d", border:"none", color:"#fff", padding:"6px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
                     ⬇️ Export Excel
                   </button>
-                  <button onClick={() => balanceTableRef.current && printPagePDF(balanceTableRef.current, { title:`Item Balance — ${balanceTab==="fg"?"Finished Goods":"Raw Materials"}` })}
-                    style={{ background:"#dc2626", border:"none", color:"#fff", padding:"6px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                    🖨️ Export PDF
-                  </button>
                 </div>
 
-                <div ref={balanceTableRef}>
-                  {balanceTab === "fg" && renderTable(fgRows, "Unit Cost (+35%)")}
-                  {balanceTab === "rm" && renderTable(rmRows, "Last Cost")}
-                </div>
+                {balanceTab === "fg" && renderTable(fgRows, "Unit Cost (+35%)")}
+                {balanceTab === "rm" && renderTable(rmRows, "Last Cost")}
               </div>
             </>}
 
@@ -2234,14 +2119,10 @@ export default function App() {
                 }} style={{ background: "#15803d", border: "none", color: "#fff", padding: "6px 14px", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>
                   ⬇️ Export Excel
                 </button>
-                <button onClick={() => rawCostTableRef.current && printPagePDF(rawCostTableRef.current, { title:"Raw Material Cost Report" })}
-                  style={{ background:"#dc2626", border:"none", color:"#fff", padding:"6px 14px", borderRadius:7, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>
-                  🖨️ Export PDF
-                </button>
                 <span style={{ fontSize: 12, color: "#94a3b8" }}>{filtered.length} items</span>
               </div>
               <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 240px)" }}>
-                <table ref={rawCostTableRef} style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead style={{ position: "sticky", top: 0, background: "#f8fafc", zIndex: 10 }}>
                     <tr>
                       <th style={{ padding: "9px 12px", textAlign: "left",   borderBottom: "2px solid #e2e8f0", color: "#475569" }}>#</th>
@@ -2369,16 +2250,10 @@ export default function App() {
 
               {/* ═══ Expenses ═══ */}
               <CFSectionTitle icon="📉" title="Expenses" accent="#dc2626" />
-              <CFGrid cols={4}>
-                <CFMetricCard label="Monthly Expenses" value={fmt2(r.Expenses)} sub="Operating expenses this month" color="#dc2626" icon="🔻" />
+              <CFGrid cols={3}>
+                <CFMetricCard label="Total Expenses" value={fmt2(r.Expenses)} sub="Operating expenses" color="#dc2626" icon="🔻" />
                 <CFMetricCard label="Expenses Ratio" value={pct(n(r.ExpensesRatio))} sub="Expenses ÷ Sales" color="#d97706" icon="📊" />
-                <CFMetricCard label="Total Year Expenses" value={fmt2(r.TotalYearExpenses)} sub="Full year expenses" color="#7c3aed" icon="📅" />
-                <CFMetricCard
-                  label="Expenses / YTD Sales"
-                  value={n(r.YTDSales2026) > 0 ? (n(r.TotalYearExpenses) / n(r.YTDSales2026) * 100).toFixed(1) + "%" : "—"}
-                  sub="Year Expenses ÷ YTD Sales 2026"
-                  color={n(r.YTDSales2026) > 0 && (n(r.TotalYearExpenses) / n(r.YTDSales2026)) <= 0.5 ? "#16a34a" : "#dc2626"}
-                  icon={n(r.YTDSales2026) > 0 && (n(r.TotalYearExpenses) / n(r.YTDSales2026)) <= 0.5 ? "✅" : "⚠️"} />
+                <CFMetricCard label="Reference Sales" value={fmt2(r.TotalCustomerSales)} sub="For ratio calculation" color="#64748b" icon="📄" />
               </CFGrid>
 
               {/* ═══ Checks ═══ */}
@@ -2921,55 +2796,7 @@ export default function App() {
               </div>
               <button onClick={()=>fetchSales(saYear)} disabled={saLoading}
                 style={{ background:saLoading?"#94a3b8":"#1d4ed8",color:"#fff",border:"none",padding:"8px 16px",borderRadius:8,cursor:saLoading?"not-allowed":"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700 }}>
-                {saLoading?"⏳ Loading...":"🔄 Refresh"}
-              </button>
-              <button onClick={() => saTableRef.current && printPagePDF(saTableRef.current, { title:"Sales Analysis Report", subtitle:`${saYear}` })}
-                style={{ background:"#dc2626",color:"#fff",border:"none",padding:"8px 16px",borderRadius:8,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700 }}>
-                🖨️ Export PDF
-              </button>
-              <button onClick={() => {
-                const MONTHS_SA = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-                const wb = XLSX.utils.book_new();
-                const header = [
-                  ...(showItem     ? ["Item Code","Item Description"] : []),
-                  ...(showFamily   ? ["Family"] : []),
-                  ...(showCustomer ? ["Customer No","Customer Name"] : []),
-                  ...(showSales    ? ["Salesperson"] : []),
-                  ...(showMonth    ? ["Month"] : []),
-                  "Amount","Qty","Qty (Box)","Share %",
-                ];
-                const grandAmt = displayData.reduce((s,r)=>s+r.amount,0);
-                const wsRows = [
-                  [`Sales Analysis — ${saYear}`, ...Array(header.length-1).fill("")],
-                  [`Generated: ${new Date().toLocaleDateString("en-GB")}`, ...Array(header.length-1).fill("")],
-                  [],
-                  header,
-                  ...displayData.map(r => [
-                    ...(showItem     ? [r.ItemCode||"", r.ItemDesc||""] : []),
-                    ...(showFamily   ? [r.FamilyDescription||""] : []),
-                    ...(showCustomer ? [r.CustomerNo||"", r.CustomerName||""] : []),
-                    ...(showSales    ? [r.SalesName||""] : []),
-                    ...(showMonth    ? [MONTHS_SA[(r.Month||1)-1]||""] : []),
-                    r.amount, r.qty, r.qtyBox,
-                    grandAmt > 0 ? Math.round(r.amount/grandAmt*1000)/10 : 0,
-                  ]),
-                  [],
-                  [
-                    ...Array(header.length - 4).fill(""),
-                    "TOTAL",
-                    displayData.reduce((s,r)=>s+r.amount,0),
-                    displayData.reduce((s,r)=>s+r.qty,0),
-                    displayData.reduce((s,r)=>s+r.qtyBox,0),
-                    100,
-                  ],
-                ];
-                const ws = XLSX.utils.aoa_to_sheet(wsRows);
-                ws["!cols"] = header.map(h => ({ wch: h.includes("Description")||h.includes("Name") ? 28 : 14 }));
-                XLSX.utils.book_append_sheet(wb, ws, `Sales ${saYear}`);
-                XLSX.writeFile(wb, `Sales_Analysis_${saYear}.xlsx`);
-              }}
-                style={{ background:"#15803d",color:"#fff",border:"none",padding:"8px 16px",borderRadius:8,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700 }}>
-                ⬇️ Export Excel
+                {saLoading?"⏳ Loading...":"🔄 Load Sales"}
               </button>
               {saMsg && <span style={{ fontSize:12,color:saMsg.startsWith("✅")?"#15803d":"#dc2626",fontWeight:600 }}>{saMsg}</span>}
             </div>
@@ -3155,7 +2982,7 @@ export default function App() {
             {/* ── Table + Detail Panel ── */}
             <div style={{ display:"grid", gridTemplateColumns: saSelected ? "1fr 340px" : "1fr", gap:12, alignItems:"start" }}>
             <div style={{ overflowX:"auto",borderRadius:10,border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-              <table ref={saTableRef} style={{ width:"100%",borderCollapse:"collapse",fontSize:12,fontFamily:"inherit" }}>
+              <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12,fontFamily:"inherit" }}>
                 <thead>
                   <tr>
                     <th style={{ padding:0, borderBottom:"2px solid #e2e8f0", background:"#f8fafc" }}>
@@ -3785,7 +3612,7 @@ export default function App() {
             <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap", marginBottom:14 }}>
               <button onClick={()=>fetchCoverage(ccYear)} disabled={ccLoading}
                 style={{ background:ccLoading?"#94a3b8":"#1d4ed8",color:"#fff",border:"none",padding:"9px 18px",borderRadius:8,cursor:ccLoading?"not-allowed":"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700 }}>
-                {ccLoading?"⏳ Loading...":"🔄 Refresh"}
+                {ccLoading?"⏳ Loading...":"🔄 Load Data"}
               </button>
 
               {/* Year */}
@@ -4069,16 +3896,11 @@ export default function App() {
 
               {/* Toolbar */}
               <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:18, alignItems:"center" }}>
-                {/* Refresh */}
+                {/* Load Data */}
                 <button onClick={e=>{e.stopPropagation();fetchExpenses(exYear);}} disabled={exLoading}
                   style={{ background:exLoading?"#a78bfa":"#7c3aed", color:"#fff", border:"none", borderRadius:8,
                     padding:"8px 20px", fontWeight:600, fontSize:14, cursor:exLoading?"not-allowed":"pointer" }}>
-                  {exLoading ? "⏳ Loading…" : "🔄 Refresh"}
-                </button>
-                <button onClick={e=>{e.stopPropagation(); exTableRef.current && printPagePDF(exTableRef.current, { title:"Expenses Analysis", subtitle:`${exYear}` });}}
-                  style={{ background:"#dc2626", color:"#fff", border:"none", borderRadius:8,
-                    padding:"8px 20px", fontWeight:600, fontSize:14, cursor:"pointer" }}>
-                  🖨️ Export PDF
+                  {exLoading ? "⏳ Loading…" : "⚡ Load Data"}
                 </button>
 
                 {/* Month filter */}
@@ -4202,7 +4024,7 @@ export default function App() {
                           {exData.length ? "No rows match filters." : "Click ⚡ Load Data to begin."}
                         </div>
                       : (
-                        <table ref={exTableRef} style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                           <thead>
                             <tr>
                               <th style={{ padding:"10px 12px", textAlign:"center", borderBottom:"2px solid #e2e8f0", background:"#f8fafc", color:"#94a3b8", fontSize:12, fontWeight:600 }}>#</th>
@@ -4331,303 +4153,7 @@ export default function App() {
         }
       })()}
 
-      {/* ── Customer Orders Page ── */}
-      {page === "orders" && (() => {
-        try {
-          const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-          const fmt  = n => (parseFloat(n)||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
-          const fmt2 = n => (parseFloat(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-          const n    = v => parseFloat(v)||0;
-
-          // State badge style
-          const stateBadge = (s) => {
-            const map = {
-              "New":           { bg:"#dbeafe", color:"#1d4ed8" },
-              "Ready To Load": { bg:"#dcfce7", color:"#15803d" },
-              "Invoiced":      { bg:"#f3f0ff", color:"#7c3aed" },
-              "Cancelled":     { bg:"#fee2e2", color:"#dc2626" },
-            };
-            const st = map[s] || { bg:"#f1f5f9", color:"#64748b" };
-            return <span style={{ background:st.bg, color:st.color, padding:"2px 10px", borderRadius:20, fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{s}</span>;
-          };
-
-          // Filter headers
-          const q = ordersSearch.toLowerCase();
-          const filteredHeaders = ordersHeaders.filter(h => {
-            const stateOk = ordersState === "all" || h.StateDescription === ordersState;
-            const searchOk = !q
-              || String(h.OrderNumber||"").includes(q)
-              || (h.CustomerName||"").toLowerCase().includes(q)
-              || String(h.CustomerNo||"").includes(q);
-            return stateOk && searchOk;
-          });
-
-          // Sort
-          const sorted = [...filteredHeaders].sort((a,b) => {
-            const d = ordersSortDir === "asc" ? 1 : -1;
-            if (ordersSortCol === "DateOrderEntered" || ordersSortCol === "ScheduledShipDate")
-              return d * (new Date(a[ordersSortCol]||0) - new Date(b[ordersSortCol]||0));
-            if (ordersSortCol === "TotalFinalAmount") return d * (n(a.TotalFinalAmount) - n(b.TotalFinalAmount));
-            if (ordersSortCol === "TotalDiscount")    return d * (n(a.TotalDiscount) - n(b.TotalDiscount));
-            return d * String(a[ordersSortCol]||"").localeCompare(String(b[ordersSortCol]||""));
-          });
-
-          const grandTotal    = filteredHeaders.reduce((s,h) => s + n(h.TotalFinalAmount), 0);
-          const grandDiscount = filteredHeaders.reduce((s,h) => s + n(h.TotalDiscount), 0);
-          const avgOrder      = filteredHeaders.length ? grandTotal / filteredHeaders.length : 0;
-          const countNew      = filteredHeaders.filter(h => h.StateDescription === "New").length;
-          const countReady    = filteredHeaders.filter(h => h.StateDescription === "Ready To Load").length;
-
-          // Unique states for filter
-          const allStates = [...new Set(ordersHeaders.map(h => h.StateDescription).filter(Boolean))];
-
-          // Lines for selected order
-          const selectedOrder = ordersSelected ? ordersHeaders.find(h => h.OrderNumber == ordersSelected) : null;
-          const selectedLines = ordersSelected ? ordersLines.filter(l => String(l.OrderNumber) === String(ordersSelected)) : [];
-          const linesTotalQty = selectedLines.reduce((s,l) => s + n(l.QtyBox), 0);
-          const linesTotalAmt = selectedLines.reduce((s,l) => s + n(l.LineFinalAmountTransaction), 0);
-
-          const SH = ({ col, children, align="left" }) => (
-            <th onClick={() => { setOrdersSortCol(col); setOrdersSortDir(p => ordersSortCol===col ? (p==="desc"?"asc":"desc") : "desc"); }}
-              style={{ padding:"10px 12px", textAlign:align, cursor:"pointer", whiteSpace:"nowrap", userSelect:"none",
-                color:ordersSortCol===col?"#7c3aed":"#64748b", fontWeight:600, fontSize:12,
-                borderBottom:"2px solid #e2e8f0", background:"#f8fafc" }}>
-              {children} {ordersSortCol===col?(ordersSortDir==="desc"?"↓":"↑"):"↕"}
-            </th>
-          );
-
-          return (
-            <div style={{ padding:"24px 28px", fontFamily:"inherit" }}>
-              {/* Header */}
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
-                <div>
-                  <h2 style={{ margin:0, fontSize:22, fontWeight:700, color:"#1e293b", display:"flex", alignItems:"center", gap:8 }}>
-                    📋 Customer Orders
-                  </h2>
-                  <div style={{ fontSize:13, color:"#64748b", marginTop:3 }}>Open orders · State ≤ 65</div>
-                </div>
-                <div style={{ display:"flex", alignItems:"center", gap:6, background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:10, padding:"6px 14px" }}>
-                  <button onClick={()=>setOrdersYear(y=>y-1)} style={{ border:"none",background:"none",cursor:"pointer",fontSize:18,color:"#7c3aed",fontWeight:700,padding:"0 4px" }}>‹</button>
-                  <span style={{ fontWeight:700,fontSize:16,minWidth:44,textAlign:"center" }}>{ordersYear}</span>
-                  <button onClick={()=>setOrdersYear(y=>y+1)} style={{ border:"none",background:"none",cursor:"pointer",fontSize:18,color:"#7c3aed",fontWeight:700,padding:"0 4px" }}>›</button>
-                </div>
-              </div>
-
-              {/* Toolbar */}
-              <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:18, alignItems:"center" }}>
-                <button onClick={()=>fetchOrders(ordersYear)} disabled={ordersLoading}
-                  style={{ background:ordersLoading?"#a78bfa":"#7c3aed",color:"#fff",border:"none",borderRadius:8,padding:"8px 20px",fontWeight:600,fontSize:14,cursor:ordersLoading?"not-allowed":"pointer" }}>
-                  {ordersLoading?"⏳ Loading…":"🔄 Refresh"}
-                </button>
-                <button onClick={()=>ordersTableRef.current && printPagePDF(ordersTableRef.current,{title:"Customer Orders",subtitle:`${ordersYear}`})}
-                  style={{ background:"#dc2626",color:"#fff",border:"none",borderRadius:8,padding:"8px 20px",fontWeight:600,fontSize:14,cursor:"pointer" }}>
-                  🖨️ Export PDF
-                </button>
-
-                {/* State filter */}
-                <div style={{ display:"flex", gap:6 }}>
-                  {["all",...allStates].map(s=>(
-                    <button key={s} onClick={()=>setOrdersState(s)}
-                      style={{ padding:"6px 14px", borderRadius:20, border:"1px solid #e2e8f0", cursor:"pointer", fontSize:12, fontWeight:600,
-                        background:ordersState===s?"#7c3aed":"#f8fafc", color:ordersState===s?"#fff":"#64748b" }}>
-                      {s==="all"?"All Orders":s}
-                    </button>
-                  ))}
-                </div>
-
-                <input value={ordersSearch} onChange={e=>{setOrdersSearch(e.target.value);setOrdersSelected(null);}}
-                  placeholder="🔍 Search order #, customer…"
-                  style={{ border:"1px solid #e2e8f0",borderRadius:8,padding:"7px 14px",fontSize:13,minWidth:240,outline:"none" }}/>
-
-                {ordersMsg && <span style={{ fontSize:13,color:ordersMsg.startsWith("✅")?"#15803d":"#ef4444" }}>{ordersMsg}</span>}
-              </div>
-
-              {/* KPI Cards */}
-              <div style={{ display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12,marginBottom:20 }}>
-                {[
-                  { label:"Total Orders",   value:filteredHeaders.length, accent:"#6366f1" },
-                  { label:"Total Amount",   value:fmt(grandTotal),        accent:"#0ea5e9" },
-                  { label:"Total Discount", value:fmt(Math.abs(grandDiscount)), accent:"#f59e0b" },
-                  { label:"Avg Order",      value:fmt(avgOrder),          accent:"#8b5cf6" },
-                  { label:"🟢 Ready To Load", value:countReady,           accent:"#22c55e" },
-                  { label:"🔵 New",         value:countNew,               accent:"#3b82f6" },
-                ].map(({label,value,accent})=>(
-                  <div key={label} style={{ background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"14px 16px",borderTop:`3px solid ${accent}`,boxShadow:"0 1px 4px #0001" }}>
-                    <div style={{ fontSize:11,color:"#94a3b8",marginBottom:4 }}>{label}</div>
-                    <div style={{ fontSize:20,fontWeight:700,color:"#1e293b" }}>{value}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Table + Detail Panel */}
-              <div style={{ display:"flex",gap:16,alignItems:"flex-start" }}>
-
-                {/* Orders Table */}
-                <div style={{ flex:1,overflowX:"auto",background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,boxShadow:"0 1px 4px #0001" }}>
-                  {!sorted.length
-                    ? <div style={{ padding:40,textAlign:"center",color:"#94a3b8" }}>{ordersHeaders.length?"No orders match filters.":"Click 🔄 Refresh to load orders."}</div>
-                    : <table ref={ordersTableRef} style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-                        <thead>
-                          <tr>
-                            <th style={{ padding:"10px 12px",borderBottom:"2px solid #e2e8f0",background:"#f8fafc",color:"#94a3b8",fontSize:12,fontWeight:600,textAlign:"center" }}>#</th>
-                            <SH col="OrderNumber">Order #</SH>
-                            <SH col="CustomerName">Customer</SH>
-                            <SH col="DateOrderEntered">Date Entered</SH>
-                            <SH col="ScheduledShipDate">Ship Date</SH>
-                            <SH col="TotalFinalAmount" align="right">Total Amount</SH>
-                            <SH col="TotalDiscount" align="right">Discount</SH>
-                            <th style={{ padding:"10px 12px",borderBottom:"2px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:600,fontSize:12,textAlign:"center" }}>Disc %</th>
-                            <th style={{ padding:"10px 12px",borderBottom:"2px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:600,fontSize:12,textAlign:"center" }}>State</th>
-                            <th style={{ padding:"10px 12px",borderBottom:"2px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:600,fontSize:12 }}>Ship To</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sorted.map((h,idx)=>{
-                            const discPct = n(h.TotalFinalAmount)+Math.abs(n(h.TotalDiscount)) > 0
-                              ? (Math.abs(n(h.TotalDiscount))/(n(h.TotalFinalAmount)+Math.abs(n(h.TotalDiscount)))*100).toFixed(1)
-                              : "0.0";
-                            const isSelected = ordersSelected == h.OrderNumber;
-                            return (
-                              <tr key={h.OrderNumber} onClick={()=>setOrdersSelected(isSelected?null:h.OrderNumber)}
-                                style={{ background:isSelected?"#f3f0ff":idx%2===0?"#fff":"#fafafa",
-                                  borderBottom:"1px solid #f1f5f9",cursor:"pointer",transition:"background 0.12s" }}>
-                                <td style={{ padding:"9px 12px",textAlign:"center",color:"#94a3b8",fontSize:11 }}>{idx+1}</td>
-                                <td style={{ padding:"9px 12px",fontFamily:"monospace",fontWeight:700,color:"#7c3aed" }}>{h.OrderNumber}</td>
-                                <td style={{ padding:"9px 12px",color:"#1e293b",fontWeight:600 }}>{h.CustomerName}</td>
-                                <td style={{ padding:"9px 12px",color:"#64748b",fontSize:12 }}>{h.DateOrderEntered?.slice(0,10)}</td>
-                                <td style={{ padding:"9px 12px",color:"#64748b",fontSize:12 }}>{h.ScheduledShipDate?.slice(0,10)}</td>
-                                <td style={{ padding:"9px 12px",textAlign:"right",fontWeight:700,color:"#1e293b",fontFamily:"monospace" }}>{fmt2(h.TotalFinalAmount)}</td>
-                                <td style={{ padding:"9px 12px",textAlign:"right",color:"#dc2626",fontFamily:"monospace" }}>{fmt2(h.TotalDiscount)}</td>
-                                <td style={{ padding:"9px 12px",textAlign:"center",color:"#f59e0b",fontWeight:700 }}>{discPct}%</td>
-                                <td style={{ padding:"9px 12px",textAlign:"center" }}>{stateBadge(h.StateDescription)}</td>
-                                <td style={{ padding:"9px 12px",color:"#64748b",fontSize:12 }}>{h.ShipToName}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr style={{ background:"#f8fafc",borderTop:"2px solid #e2e8f0",fontWeight:700 }}>
-                            <td colSpan={5} style={{ padding:"9px 12px",color:"#64748b",fontSize:12 }}>TOTAL ({sorted.length} orders)</td>
-                            <td style={{ padding:"9px 12px",textAlign:"right",fontFamily:"monospace",color:"#1e293b" }}>{fmt2(grandTotal)}</td>
-                            <td style={{ padding:"9px 12px",textAlign:"right",fontFamily:"monospace",color:"#dc2626" }}>{fmt2(grandDiscount)}</td>
-                            <td colSpan={3} />
-                          </tr>
-                        </tfoot>
-                      </table>
-                  }
-                </div>
-              </div>{/* end flex table wrapper */}
-
-              {/* Order Lines Modal */}
-              {selectedOrder && (
-                <div style={{ position:"fixed", inset:0, zIndex:1000, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}
-                  onClick={()=>setOrdersSelected(null)}>
-                  <div style={{ background:"#fff", borderRadius:16, boxShadow:"0 20px 60px #0004", width:"100%", maxWidth:1100, maxHeight:"90vh", display:"flex", flexDirection:"column", overflow:"hidden" }}
-                    onClick={e=>e.stopPropagation()}>
-
-                    {/* Modal header */}
-                    <div style={{ padding:"16px 24px", borderBottom:"1px solid #f1f5f9", background:"linear-gradient(135deg,#f3f0ff,#fff)", flexShrink:0 }}>
-                      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
-                        <div>
-                          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
-                            <span style={{ fontFamily:"monospace", fontWeight:700, color:"#7c3aed", fontSize:20 }}>#{selectedOrder.OrderNumber}</span>
-                            {stateBadge(selectedOrder.StateDescription)}
-                          </div>
-                          <div style={{ fontWeight:700, fontSize:18, color:"#1e293b", marginBottom:4 }}>{selectedOrder.CustomerName}</div>
-                          <div style={{ fontSize:12, color:"#94a3b8" }}>
-                            Entered: {selectedOrder.DateOrderEntered?.slice(0,10)} · Ship: {selectedOrder.ScheduledShipDate?.slice(0,10)} · {selectedOrder.ShipToName}
-                          </div>
-                        </div>
-                        <button onClick={()=>setOrdersSelected(null)}
-                          style={{ border:"none", background:"#f1f5f9", borderRadius:8, width:32, height:32, cursor:"pointer", fontSize:16, color:"#64748b", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>✕</button>
-                      </div>
-                      {/* Summary strip */}
-                      <div style={{ display:"flex", gap:32, marginTop:12 }}>
-                        {[
-                          { label:"Total Amount",  value:fmt2(selectedOrder.TotalFinalAmount), color:"#1e293b" },
-                          { label:"Discount",       value:fmt2(selectedOrder.TotalDiscount),    color:"#dc2626" },
-                          { label:"Lines",          value:selectedLines.length,                 color:"#7c3aed" },
-                          { label:"Total Qty (Box)",value:linesTotalQty.toFixed(2),             color:"#0ea5e9" },
-                          { label:"Lines Total",    value:fmt2(linesTotalAmt),                  color:"#15803d" },
-                        ].map(({label,value,color})=>(
-                          <div key={label}>
-                            <div style={{ fontSize:11, color:"#94a3b8", marginBottom:2 }}>{label}</div>
-                            <div style={{ fontWeight:700, fontSize:15, color, fontFamily:"monospace" }}>{value}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Lines table */}
-                    <div style={{ overflowY:"auto", flex:1 }}>
-                      {!selectedLines.length
-                        ? <div style={{ padding:40, textAlign:"center", color:"#94a3b8" }}>No lines found for this order.</div>
-                        : <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-                            <thead style={{ position:"sticky", top:0, zIndex:5 }}>
-                              <tr style={{ background:"#7c3aed" }}>
-                                <th style={{ padding:"10px 14px", color:"#fff", fontWeight:600, textAlign:"center", whiteSpace:"nowrap" }}>#</th>
-                                <th style={{ padding:"10px 14px", color:"#fff", fontWeight:600, textAlign:"left",   whiteSpace:"nowrap" }}>Item Code</th>
-                                <th style={{ padding:"10px 14px", color:"#fff", fontWeight:600, textAlign:"left"  }}>Description</th>
-                                <th style={{ padding:"10px 14px", color:"#fff", fontWeight:600, textAlign:"right", whiteSpace:"nowrap" }}>Qty (Box)</th>
-                                <th style={{ padding:"10px 14px", color:"#fff", fontWeight:600, textAlign:"right", whiteSpace:"nowrap" }}>On Hand</th>
-                                <th style={{ padding:"10px 14px", color:"#fff", fontWeight:600, textAlign:"right", whiteSpace:"nowrap" }}>List Price</th>
-                                <th style={{ padding:"10px 14px", color:"#fff", fontWeight:600, textAlign:"right", whiteSpace:"nowrap" }}>Net Price</th>
-                                <th style={{ padding:"10px 14px", color:"#fff", fontWeight:600, textAlign:"right", whiteSpace:"nowrap" }}>Line Amt</th>
-                                <th style={{ padding:"10px 14px", color:"#fff", fontWeight:600, textAlign:"right", whiteSpace:"nowrap" }}>Discount</th>
-                                <th style={{ padding:"10px 14px", color:"#fff", fontWeight:600, textAlign:"right", whiteSpace:"nowrap" }}>Final Amt</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {selectedLines.map((l,idx)=>{
-                                const qty         = n(l.QtyBox);
-                                const onHand      = n(l.OnHand);
-                                const canFill     = onHand >= qty;
-                                const onHandColor = qty===0?"#94a3b8":onHand<=0?"#dc2626":!canFill?"#f59e0b":"#15803d";
-                                const onHandBg    = qty===0?"transparent":onHand<=0?"#fef2f2":!canFill?"#fffbeb":"#f0fdf4";
-                                const onHandIcon  = qty===0?"":onHand<=0?"🔴":!canFill?"🟡":"🟢";
-                                return (
-                                  <tr key={`${l.OrderNumber}-${l.LineNumber}`}
-                                    style={{ background:idx%2===0?"#fff":"#fafafa", borderBottom:"1px solid #f1f5f9" }}>
-                                    <td style={{ padding:"9px 14px", textAlign:"center", color:"#94a3b8", fontSize:11 }}>{l.LineNumber}</td>
-                                    <td style={{ padding:"9px 14px", fontFamily:"monospace", fontWeight:700, color:"#0f2d5a" }}>{l.ItemCode}</td>
-                                    <td style={{ padding:"9px 14px", color:"#1e293b" }}>{l.ItemDescription}</td>
-                                    <td style={{ padding:"9px 14px", textAlign:"right", fontWeight:700 }}>{qty.toFixed(2)}</td>
-                                    <td style={{ padding:"9px 14px", textAlign:"right", fontWeight:700, color:onHandColor, background:onHandBg }}>{onHandIcon} {onHand.toFixed(2)}</td>
-                                    <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"monospace", color:"#64748b" }}>{fmt2(l.ListPriceTransStocking)}</td>
-                                    <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"monospace" }}>{fmt2(l.NetPriceTransStocking)}</td>
-                                    <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"monospace" }}>{fmt2(l.LineAmountTransaction)}</td>
-                                    <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"monospace", color:"#dc2626" }}>{fmt2(l.LineDiscountTransaction)}</td>
-                                    <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"monospace", fontWeight:700, color:"#1e293b" }}>{fmt2(l.LineFinalAmountTransaction)}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                            <tfoot>
-                              <tr style={{ background:"#f8fafc", borderTop:"2px solid #e2e8f0", fontWeight:700 }}>
-                                <td colSpan={3} style={{ padding:"10px 14px", color:"#64748b", fontSize:12 }}>TOTAL ({selectedLines.length} lines)</td>
-                                <td style={{ padding:"10px 14px", textAlign:"right", fontFamily:"monospace" }}>{linesTotalQty.toFixed(2)}</td>
-                                <td />
-                                <td />
-                                <td />
-                                <td />
-                                <td />
-                                <td style={{ padding:"10px 14px", textAlign:"right", fontFamily:"monospace", color:"#1e293b" }}>{fmt2(linesTotalAmt)}</td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                      }
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        } catch(e) {
-          return <div style={{ padding:20,color:"#dc2626",fontWeight:700,fontSize:14 }}>❌ Orders Error: {String(e.message)}</div>;
-        }
-      })()}
       </div>{/* end flex:1 page content */}
-
       </div>{/* end cm-main */}
     </div>}
     </>
